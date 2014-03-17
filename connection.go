@@ -16,7 +16,11 @@ type conn struct {
 func (c *conn) Close() (err error) {
 	for _, e := range mock.conn.expectations {
 		if !e.fulfilled() {
-			err = fmt.Errorf("there is a remaining expectation %T which was not matched yet", e)
+			if qexpect, ok := e.(*expectedExec); ok {
+				err = fmt.Errorf("there is a remaining expectation %T, \"%s\" which was not matched yet", qexpect, qexpect.sqlRegex.String())
+			} else {
+				err = fmt.Errorf("there is a remaining expectation %T which was not matched yet", e)
+			}
 			break
 		}
 	}
