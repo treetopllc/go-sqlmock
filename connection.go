@@ -3,6 +3,7 @@ package sqlmock
 import (
 	"database/sql/driver"
 	"fmt"
+	"strings"
 )
 
 type conn struct {
@@ -14,12 +15,26 @@ type conn struct {
 // be always called to ensure that all expectations
 // were met successfully. Returns error if there is any
 func (c *conn) Close() (err error) {
+	msgs := make([]string, 0, 10)
 	for _, e := range mock.conn.expectations {
-		if !e.fulfilled() {
-			if qexpect, ok := e.(*expectedExec); ok {
-				err = fmt.Errorf("there is a remaining expectation %T, \"%s\" which was not matched yet", qexpect, qexpect.sqlRegex.String())
-			} else {
-				err = fmt.Errorf("there is a remaining expectation %T which was not matched yet", e)
+		if e.fulfilled() {
+			var msg string
+			switch ev := e.(type) {
+			case *expectedExec:
+				msg = fmt.Sprintf("execed \"%s\"", ev.sqlRegex.String())
+			case *expectedQuery:
+				msg = fmt.Sprintf("queried \"%s\"", ev.sqlRegex.String())
+			}
+			msgs = append(msgs, msg)
+		} else {
+			errs := strings.Join(msgs, "\n")
+			switch ev := e.(type) {
+			case *expectedExec:
+				err = fmt.Errorf("%s\nthere is a remaining expectation %T, \"%s\" which was not matched yet", errs, ev, ev.sqlRegex.String())
+			case *expectedQuery:
+				err = fmt.Errorf("%s\nthere is a remaining expectation %T, \"%s\" which was not matched yet", errs, ev, ev.sqlRegex.String())
+			default:
+				err = fmt.Errorf("%s\nthere is a remaining expectation %T which was not matched yet", errs, e)
 			}
 			break
 		}
